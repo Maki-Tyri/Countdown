@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Countdown Timer</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: black;
+      color: white;
+      font-family: sans-serif;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 90%;
+      max-width: 320px;
+      padding: 20px;
+    }
+    input, button {
+      font-size: 6vw;
+      padding: 12px;
+    }
+    .countdown {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 10vw;
+      text-align: center;
+      color: red;
+    }
+    .countdown div {
+      margin: 4px 0;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <form id="countdownForm">
+    <label>Petsa:
+      <input type="date" id="targetDateInput" required>
+    </label>
+    <label>Oras:
+      <input type="time" id="targetTimeInput" required>
+    </label>
+    <button type="submit">Simulan</button>
+  </form>
+
+  <div class="countdown" id="countdownDisplay">
+    <div>0y</div>
+    <div>0m</div>
+    <div>0d</div>
+    <div>0h</div>
+    <div>0m</div>
+    <div>0s</div>
+    <div>000ms</div>
+  </div>
+
+  <audio id="alarmSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
+  <script>
+    const form = document.getElementById("countdownForm");
+    const display = document.getElementById("countdownDisplay");
+    const alarmSound = document.getElementById("alarmSound");
+
+    function getTargetDateTime(dateStr, timeStr) {
+      const [hours, minutes] = timeStr.split(":").map(Number);
+      const date = new Date(dateStr);
+      date.setHours(hours, minutes, 0, 0);
+      return date;
+    }
+
+    function formatDiff(targetDate) {
+      const now = new Date();
+      let diff = targetDate - now;
+      if (diff <= 0) return null;
+
+      let ms = diff % 1000;
+      diff = Math.floor(diff / 1000);
+      const seconds = diff % 60;
+      diff = Math.floor(diff / 60);
+      const minutes = diff % 60;
+      diff = Math.floor(diff / 60);
+      const hours = diff % 24;
+      diff = Math.floor(diff / 24);
+
+      const years = Math.floor(diff / 365);
+      const months = Math.floor((diff % 365) / 30);
+      const days = (diff % 365) % 30;
+
+      return { years, months, days, hours, minutes, seconds, ms };
+    }
+
+    function startCountdown(dateStr, timeStr) {
+      const targetDate = getTargetDateTime(dateStr, timeStr);
+      form.remove();
+      display.style.display = "flex";
+
+      const units = display.querySelectorAll("div");
+
+      function update() {
+        const diff = formatDiff(targetDate);
+        if (!diff) {
+          display.innerHTML = "<div>TAPOS NA!</div>";
+          clearInterval(timer);
+          localStorage.removeItem("targetDateTime");
+          alarmSound.play();
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("Tapos na!", { body: "Countdown complete." });
+          }
+          return;
+        }
+
+        const { years, months, days, hours, minutes, seconds, ms } = diff;
+        units[0].textContent = `${years}y`;
+        units[1].textContent = `${months}m`;
+        units[2].textContent = `${days}d`;
+        units[3].textContent = `${hours}h`;
+        units[4].textContent = `${minutes}m`;
+        units[5].textContent = `${seconds}s`;
+        units[6].textContent = `${ms.toString().padStart(3, '0')}ms`;
+      }
+
+      update();
+      const timer = setInterval(update, 100);
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const date = document.getElementById("targetDateInput").value;
+      const time = document.getElementById("targetTimeInput").value;
+      if (!date || !time) return;
+      localStorage.setItem("targetDateTime", JSON.stringify({ date, time }));
+      startCountdown(date, time);
+    });
+
+    const saved = localStorage.getItem("targetDateTime");
+    if (saved) {
+      const { date, time } = JSON.parse(saved);
+      startCountdown(date, time);
+    }
+
+    if ("Notification" in window && Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
+</body>
+</html>
